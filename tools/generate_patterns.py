@@ -495,8 +495,12 @@ def build_sharpness(fmt, w, h):
 
 
 # --- motion (24p pan) -----------------------------------------------------------
+MOTION_CHECK = (0, 60, 119, 239)  # motion frames compared by verify(); verify-only renders just these
+
+
 @family("motion", ["hdr10", "sdr"], kind="motion", crf=14, fps="24000/1001", frames=240)
-def build_motion(fmt, w, h):
+def build_motion(fmt, w, h, only=None):
+    """240-frame pan. `only`: render just these frame indices (verification; all 240 at 4K is ~24 GB)."""
     if fmt.hdr:
         bg, white = hdr_gray(5), hdr_gray(203)
     else:
@@ -511,6 +515,8 @@ def build_motion(fmt, w, h):
     txt = text_mask("24p", int(round(110 * s)))
     frames = []
     for k in range(240):
+        if only is not None and k not in only:
+            continue
         c = Canvas(w, h, bg)
         off = (k * speed) % period
         for band_y in (int(0.12 * h), int(0.76 * h)):
@@ -669,11 +675,11 @@ def make_dv(fam, hevc, stats, cll, n_out, out, tmp):
 
 # ============================================================== verification
 def verify(path, w, h, intended, kind, n_out):
-    """Decode the file and compare with the intended code values."""
+    """Decode the file and compare with the intended code values.
+
+    Decoded frames are streamed and only the checked ones are kept (a 4K motion clip decodes to ~6 GB).
+    """
     frame_bytes = w * h * 3  # 10-bit 4:2:0 = 1.5 samples * 2 bytes
-    raw = subprocess.run(["ffmpeg", "-v", "error", "-i", path, "-fps_mode", "passthrough", "-f", "rawvideo", "-pix_fmt", "yuv420p10le", "-"],
-                         check=True, capture_output=True).stdout
-    got_n = len(raw) // frame_bytes
     probe = json.loads(subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
                                        "stream=avg_frame_rate,nb_frames,color_transfer,color_primaries,color_space,color_range",
                                        "-of", "json", path], check=True, capture_output=True).stdout)["streams"][0]
@@ -683,18 +689,33 @@ def verify(path, w, h, intended, kind, n_out):
         raise AssertionError(f"{path}: HEVC profile is '{profile}', must be 'Main 10' for TV decoders")
     if int(probe["nb_frames"]) != n_out or probe["color_range"] != "tv":
         raise AssertionError(f"{path}: bad container info {probe}")
-    if got_n != n_out:
-        raise AssertionError(f"{path}: decoded {got_n} frames, expected {n_out}")
     if kind == "static":
         check = [(0, 0), (n_out - 1, 0)]
     elif kind == "frames":
         check = [(i, i) for i in range(n_out)]
     else:
-        check = [(i, i) for i in (0, 60, 119, 239)]
+        check = [(i, i) for i in MOTION_CHECK]
+    wanted = {fi: ii for fi, ii in check}
+    kept = {}
+    proc = subprocess.Popen(["ffmpeg", "-v", "error", "-i", path, "-fps_mode", "passthrough", "-f", "rawvideo",
+                             "-pix_fmt", "yuv420p10le", "-"], stdout=subprocess.PIPE)
+    got_n = 0
+    while True:
+        chunk = proc.stdout.read(frame_bytes)
+        if len(chunk) < frame_bytes:
+            break
+        if got_n in wanted:
+            kept[got_n] = chunk
+        got_n += 1
+    proc.stdout.close()
+    if proc.wait() != 0:
+        raise AssertionError(f"{path}: ffmpeg failed to decode")
+    if got_n != n_out:
+        raise AssertionError(f"{path}: decoded {got_n} frames, expected {n_out}")
     worst_luma = worst_chroma = 0
     exact = []
     for fi, ii in check:
-        buf = np.frombuffer(raw[fi * frame_bytes:(fi + 1) * frame_bytes], dtype="<u2")
+        buf = np.frombuffer(kept[fi], dtype="<u2")
         y = buf[:w * h].reshape(h, w)
         cb = buf[w * h:w * h + w * h // 4].reshape(h // 2, w // 2)
         cr = buf[w * h + w * h // 4:].reshape(h // 2, w // 2)
@@ -733,14 +754,20 @@ def verify_only(out_dir):
         for fmt_name in fam["formats"]:
             fmt = HDR10 if fmt_name == "hdr10" else SDR
             for w, h, suffix in [(W4K, H4K, ""), (1920, 1080, "_1080")]:
-                frames, info = fam["build"](fmt, w, h)
+                if fam["kind"] == "motion":
+                    frames, info = fam["build"](fmt, w, h, only=MOTION_CHECK)
+                    intended = {k: to_ycc(c.rgb, fmt) for k, c in zip(MOTION_CHECK, frames)}
+                    n_out = fam["frames"]
+                else:
+                    frames, info = fam["build"](fmt, w, h)
+                    intended = [to_ycc(c.rgb, fmt) for c in frames]
+                    n_out = len(frames) if fam["kind"] != "static" else fam["frames"]
+                del frames  # keep memory low on CI runners
                 if suffix == "":
                     stored = {k: v for k, v in entry["info"].get(fmt_name, {}).items()
                               if k not in ("max_cll", "max_fall", "mdl")}
                     if _json_norm(stored) != _json_norm(json.loads(json.dumps(info))):
                         bad.append(f"manifest: {fid}/{fmt_name} levels differ from the generator")
-                intended = [to_ycc(c.rgb, fmt) for c in frames]
-                n_out = len(frames) if fam["kind"] != "static" else fam["frames"]
                 outs = [fmt_name] + (["dv"] if fmt.hdr and fid != "peak" and not fid.startswith("metadata") else [])
                 for o in outs:
                     path = os.path.join(out_dir, f"{fid}{suffix}_{o}.mp4")
