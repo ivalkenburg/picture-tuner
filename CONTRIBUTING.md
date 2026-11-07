@@ -19,7 +19,7 @@ gives people wrong advice about their TV.
   `python3 tools/generate_patterns.py --only <family>`. The script refuses to finish unless every clip decodes
   bit-exact and has the Main 10 profile.
 - Commit the regenerated `.mp4` files together with `manifest.json`.
-- Run `python3 tools/generate_patterns.py --verify-only` before opening a pull request. CI runs it too.
+- Run `python3 tools/generate_patterns.py --verify-only` before opening a pull request. The Release workflow runs it too.
 - Explain the reasoning for any new level or threshold in the pull request (which standard, which value and why).
 
 ## Code

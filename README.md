@@ -16,7 +16,8 @@ There are two modes:
 - **Free choice** lets you open any screen from the list.
 
 Download the APK from [Releases](https://github.com/ivalkenburg/picture-tuner/releases) and install it on your
-Android TV or Google TV device, for example with `adb install`.
+Android TV or Google TV device, for example with `adb install`. Tested on an NVIDIA Shield TV Pro with an LG G5
+(OLED). Other devices are untested; reports are welcome.
 
 ## Controls
 
@@ -59,8 +60,10 @@ reads its levels from.
   encoded losslessly as HEVC Main 10.
 - **Metadata:** HDR10 MaxCLL/MaxFALL and Dolby Vision L1 are measured from the frames. Dolby Vision clips are
   Profile 8.1: the same base layer plus metadata.
+- **Compatibility:** each clip declares the lowest HEVC level it satisfies (4K: 5, 1080p: 4), checked against the
+  H.265 Annex A limits, instead of x265's "no level" default for lossless streams.
 - **Verification:** every clip is decoded and compared with the intended code values, both by the generator and
-  by CI (`--verify-only`).
+  by the Release workflow (`--verify-only`).
 
 ## Build
 

@@ -6,7 +6,8 @@ slightly off gives people wrong advice about their TV.
 ## Patterns
 - `tools/generate_patterns.py` is the single source of truth for the clips in `app/src/main/assets/patterns/` and
   their `manifest.json`. Change the generator and regenerate (`--only <family>`); the clips are never edited by hand.
-- Clips must stay bit-exact (lossless) and HEVC **Main 10**; the generator's verification enforces both. Run
+- Clips must stay bit-exact (lossless), HEVC **Main 10**, and declare the lowest real HEVC level they satisfy
+  (the generator picks it and verification re-checks it against the Annex A limits). Run
   `python3 tools/generate_patterns.py --verify-only` before committing anything that touches patterns.
 - Regenerate only the families you changed. Encoder versions differ between machines, which changes file bytes
   even when pixels are identical.
@@ -26,14 +27,15 @@ slightly off gives people wrong advice about their TV.
 Commit subjects become the release changelog, so write each one as a user-facing changelog line.
 
 ## Releasing
-Versions are `MAJOR.MINOR.PATCH`. Pushing a tag `vMAJOR.MINOR.PATCH` runs `.github/workflows/release.yml`, which
+Versions are `MAJOR.MINOR.PATCH`. The only workflow is `.github/workflows/release.yml`; nothing runs on plain pushes.
+Pushing a tag `vMAJOR.MINOR.PATCH` runs it, which
 validates the tag, re-verifies the patterns, builds the APK and publishes a GitHub release. The release notes list
 the commits since the previous version tag, with a compare link (the first release links to all commits instead).
 
 1. On `main` with a clean tree, set `versionName = "X.Y.Z"` in `app/build.gradle.kts` and increment `versionCode`
    (the first release is 1).
-2. Commit as `Release vX.Y.Z` (this subject is left out of the changelog) and push. Wait for CI on that commit to
-   be green.
+2. Check locally: `./gradlew assembleDebug` and `python3 tools/generate_patterns.py --verify-only` (or via the
+   Docker image) both pass. Commit as `Release vX.Y.Z` (this subject is left out of the changelog) and push.
 3. Tag that commit and push the tag:
    `git tag -a vX.Y.Z -m "vX.Y.Z" && git push origin vX.Y.Z`
 4. Watch the Release workflow. It fails if the tag isn't `vMAJOR.MINOR.PATCH`, if `versionName` doesn't match the
