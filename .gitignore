@@ -1,0 +1,28 @@
+# Gradle / Android Studio
+.gradle/
+.kotlin/
+build/
+local.properties
+.idea/
+*.iml
+captures/
+
+# Release signing (never commit)
+keystore.properties
+*.jks
+*.keystore
+
+# Build outputs
+*.apk
+*.aab
+
+# Python
+__pycache__/
+.venv/
+venv/
+
+# OS
+.DS_Store
+
+# Hand-off copy of the brand kit (canonical copy lives in branding/luma-dial-source)
+output/

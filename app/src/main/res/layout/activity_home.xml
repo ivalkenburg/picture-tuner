@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#0E0F13"
+    android:orientation="horizontal"
+    android:paddingStart="48dp"
+    android:paddingTop="32dp"
+    android:paddingEnd="48dp"
+    android:paddingBottom="24dp">
+
+    <!-- Left: setup + guided -->
+    <ScrollView
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1.05"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingEnd="28dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/app_name"
+                android:textColor="#FFFFFF"
+                android:textSize="30sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Tune your TV's picture with just your eyes and the remote: look at a few test screens and follow the tips."
+                android:textColor="#B4B9C4"
+                android:textSize="14sp" />
+
+            <TextView style="@style/Label" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="1 · WHAT DO YOU WANT TO TUNE?" />
+            <LinearLayout android:id="@+id/formats" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:orientation="horizontal" />
+            <TextView
+                android:id="@+id/formatBlurb"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:textColor="#8E94A0"
+                android:textSize="13sp" />
+
+            <TextView style="@style/Label" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="2 · YOUR TV BRAND (FOR MENU NAMES)" />
+            <LinearLayout android:id="@+id/brands" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:orientation="horizontal" />
+
+            <TextView style="@style/Label" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="3 · START" />
+            <Button
+                android:id="@+id/guided"
+                style="@style/TvButton"
+                android:focusedByDefault="true"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="17sp" />
+
+            <TextView
+                android:id="@+id/results"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:lineSpacingExtra="3dp"
+                android:textColor="#B4B9C4"
+                android:textSize="13sp" />
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- Right: free choice -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView style="@style/Label" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="…OR PICK A TEST YOURSELF" />
+
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:id="@+id/tests"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp" />
+        </ScrollView>
+    </LinearLayout>
+</LinearLayout>

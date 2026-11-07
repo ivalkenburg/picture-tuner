@@ -1,0 +1,4 @@
+# Pinned: the digit labels are drawn with Pillow's bundled font, and --verify-only compares pixels
+# exactly, so a different Pillow version could render text differently.
+numpy==2.5.4
+pillow==13.0.0

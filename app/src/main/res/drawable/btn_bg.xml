@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Remote-friendly button: clear white focus ring, accent fill when selected. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape>
+            <solid android:color="#F2F2F2" />
+            <corners android:radius="10dp" />
+        </shape>
+    </item>
+    <item android:state_selected="true">
+        <shape>
+            <solid android:color="#2D4A7A" />
+            <stroke android:width="2dp" android:color="#6E9BE6" />
+            <corners android:radius="10dp" />
+        </shape>
+    </item>
+    <item>
+        <shape>
+            <solid android:color="#22252D" />
+            <corners android:radius="10dp" />
+        </shape>
+    </item>
+</selector>

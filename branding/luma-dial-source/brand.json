@@ -1,0 +1,78 @@
+{
+  "name": "Picture Tuner",
+  "direction": "Luma Dial",
+  "version": "1.0.0",
+  "colors": {
+    "foreground": "#F4F3EC",
+    "amber": "#F4B544",
+    "background": "#0E0F13"
+  },
+  "mark": {
+    "width": 400,
+    "height": 400,
+    "center": [
+      200,
+      200
+    ],
+    "ring_centerline_radius": 170,
+    "ring_thickness": 48,
+    "gap_start_degrees": -70,
+    "gap_end_degrees": -20,
+    "angle_convention": "SVG coordinates: 0 right, positive clockwise",
+    "tick_angle_degrees": -45,
+    "tick_start_radius": 145,
+    "tick_end_radius": 225,
+    "tick_width": 44,
+    "center_square": {
+      "x": 152,
+      "y": 152,
+      "width": 96,
+      "height": 96,
+      "radius": 24
+    },
+    "clear_space": 48,
+    "paths": {
+      "ring": {
+        "color": "foreground",
+        "d": "M382.300368 133.648092A194 194 0 1 1 266.351908 17.699632A24 24 0 0 1 249.934941 62.804877A146 146 0 1 0 337.195123 150.065059A24 24 0 0 1 382.300368 133.648092Z"
+      },
+      "center": {
+        "color": "foreground",
+        "d": "M176 152H224A24 24 0 0 1 248 176V224A24 24 0 0 1 224 248H176A24 24 0 0 1 152 224V176A24 24 0 0 1 176 152Z"
+      },
+      "tick": {
+        "color": "amber",
+        "d": "M286.974134 81.913168L343.542677 25.344625A22 22 0 0 1 374.655375 56.457323L318.086832 113.025866A22 22 0 0 1 286.974134 81.913168Z"
+      }
+    }
+  },
+  "type": {
+    "family": "Nunito Sans",
+    "weight": 800,
+    "text": "Picture Tuner",
+    "font": "fonts/NunitoSans-VF.ttf",
+    "license": "fonts/OFL.txt",
+    "source": "https://github.com/google/fonts/tree/main/ofl/nunitosans",
+    "note": "A reproducible, openly licensed interpretation of the generated concept lettering. Outlined SVGs are the portable rendering authority."
+  },
+  "templates": {
+    "icon": {
+      "width": 1024,
+      "height": 1024,
+      "mark_width": 640
+    },
+    "adaptive_foreground": {
+      "width": 108,
+      "height": 108,
+      "mark_width": 50
+    },
+    "tv_banner": {
+      "width": 1280,
+      "height": 720,
+      "mark_width": 240,
+      "left": 88,
+      "wordmark_left": 376,
+      "wordmark_width": 816
+    }
+  }
+}

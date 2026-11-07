@@ -1,0 +1,34 @@
+{
+  "name": "Picture Tuner",
+  "direction": "Luma Dial",
+  "version": "1.0.0",
+  "font_sha256": "f934d7142fb4784bf828da485b7dcbd90c0c80d514e9d49a5da0ed3a1ae2491d",
+  "svg_count": 11,
+  "checks": [
+    "SVG rasterization",
+    "transparent interior and corners",
+    "opaque center square",
+    "exact white and amber palette",
+    "320x180 TV export"
+  ],
+  "wordmark_height_per_width": 0.1177028678080152,
+  "files": {
+    "previews/icon-square.png": "8750279ee7db289ca96a958b9086de3ed743c5ba56711276e65730590cc70173",
+    "previews/logo-horizontal.png": "933297dade19ce419e40eceb60848482ea3a1ec98ce07e3b75977146433fe4f1",
+    "previews/mark-transparent.png": "2b02cb0d90455a24701db2abdf64e7e49fc1292c501ab7a9d57a52145dc26171",
+    "previews/source-sheet.png": "cb585de4cd123c1f64c0196dd061df71f160dcbba38f7547aa3d8d597ff0e16a",
+    "previews/tv-banner-320x180.png": "0190c1269a0f0c98b0072e3d2365b63d9386846009c83a92d497f1fc6ab26712",
+    "previews/tv-banner.png": "eca9592b7b9f31c49819abcbedb444f2bcd5117b27e45e6429b1fe063036efe1",
+    "svg/icon-adaptive-background.svg": "7bb0d0823222db2d938b5ef8b551214534081ca20b919e721387cae1e71bb302",
+    "svg/icon-adaptive-foreground.svg": "edb66580f534c6f8d6e6e35a9b04db4592d094792d8bf9616f9dd67f32076391",
+    "svg/icon-square.svg": "25da6f090b4ed525458fc4e8a753c694b89cc3a90a7c80c6f7050f909d6eec2f",
+    "svg/logo-horizontal-dark.svg": "eefb7e230941a2e970dcd56c87fc147ad97320e98efc73728a06541b8d5c0676",
+    "svg/logo-horizontal.svg": "07f7d07ffafcc111c9a47d90558229a638a534a283bd3b07b02afcc5a1efde83",
+    "svg/mark-mono-dark.svg": "4d06b60b22b59ef8d8f26aa97af46db7fd51b34506a2b6b70622437dcfc89f57",
+    "svg/mark-mono-light.svg": "1f88309a7c8256bb99b80f72a33054daf67e7edad0ecca261a26318cee59b9ab",
+    "svg/mark.svg": "e74a1ffcf03c9d07d42c57520b9bc44ed0efbc4e3c2743a3837d50d010b8c545",
+    "svg/tv-banner.svg": "f09d4827dc826a6ee81358c2701d7dad3ad0eea9201c06d14847a60eedcab1c6",
+    "svg/wordmark-editable.svg": "760e374ee8dfb95d168e762ae7a0ffc024e55205fde42836d257270db508e71c",
+    "svg/wordmark-outlined.svg": "cad0ae7f1e85f0d1e6f27b84deca72ad45b95299ab0fa4a1bd324807d96a447c"
+  }
+}

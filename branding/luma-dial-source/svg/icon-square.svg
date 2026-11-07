@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="Picture Tuner square icon composition">
+  <title>Picture Tuner square icon composition</title>
+<rect width="1024" height="1024" fill="#0E0F13"/><g data-name="Luma Dial" transform="translate(192 192) scale(1.6)">
+<path data-name="ring" fill="#F4F3EC" d="M382.300368 133.648092A194 194 0 1 1 266.351908 17.699632A24 24 0 0 1 249.934941 62.804877A146 146 0 1 0 337.195123 150.065059A24 24 0 0 1 382.300368 133.648092Z"/>
+<path data-name="center" fill="#F4F3EC" d="M176 152H224A24 24 0 0 1 248 176V224A24 24 0 0 1 224 248H176A24 24 0 0 1 152 224V176A24 24 0 0 1 176 152Z"/>
+<path data-name="tick" fill="#F4B544" d="M286.974134 81.913168L343.542677 25.344625A22 22 0 0 1 374.655375 56.457323L318.086832 113.025866A22 22 0 0 1 286.974134 81.913168Z"/>
+</g>
+</svg>
