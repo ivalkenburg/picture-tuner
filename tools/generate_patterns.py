@@ -16,6 +16,7 @@ Usage: python3 tools/generate_patterns.py [out_dir] [--only id,id] [--no-1080]
 import json
 import math
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -690,6 +691,86 @@ def encode(fam, fmt, w, h, hevc_out):
     return intended, stats, info, cll, n_out
 
 
+# ============================================================== HEVC level
+# x265 labels every lossless stream "level 8.5" (general_level_idc 255, no limit), which a decoder certified for
+# e.g. Main 10 @ 5.1 may refuse. The clips are tiny, so each gets the lowest real level it provably satisfies,
+# written into the VPS/SPS by ffmpeg's hevc_metadata filter (header-only: the pixels are untouched).
+#
+# Limits: ITU-T H.265 Annex A, Tables A.8/A.9 (Main tier). Checks use the stricter reading where the spec allows
+# more: CPB/bitrate with CpbVclFactor 1000, FormatCapabilityFactor 1.5, no initial-delay credit for frame 0.
+#            name  idc  MaxLumaPs  MaxCPB  MaxLumaSr    MaxBR   MinCrBase   (CPB/BR in 1000 bits)
+HEVC_LEVELS = [("4", 120, 2228224, 12000, 66846720, 12000, 4),
+               ("4.1", 123, 2228224, 20000, 133693440, 20000, 4),
+               ("5", 150, 8912896, 25000, 267386880, 25000, 6),
+               ("5.1", 153, 8912896, 40000, 534773760, 40000, 8),
+               ("5.2", 156, 8912896, 60000, 1069547520, 60000, 8),
+               ("6", 180, 35651584, 60000, 1069547520, 60000, 8),
+               ("6.1", 183, 35651584, 120000, 2139095040, 120000, 8),
+               ("6.2", 186, 35651584, 240000, 4278190080, 240000, 6)]
+
+
+def fps_value(fps):
+    a, _, b = str(fps).partition("/")
+    return float(a) / float(b) if b else float(a)
+
+
+def stream_facts(path):
+    """Access-unit sizes (bytes), declared level_idc and the SPS DPB size of an HEVC stream or MP4."""
+    sizes = [int(x) for x in subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "packet=size", "-of", "csv=p=0", path],
+        check=True, capture_output=True, text=True).stdout.split()]
+    level = int(subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=level",
+                                "-of", "csv=p=0", path], check=True, capture_output=True, text=True).stdout.strip(" ,\n"))
+    trace = subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "debug", "-i", path, "-map", "0:v:0", "-c", "copy",
+                            "-bsf:v", "trace_headers", "-frames:v", "1", "-f", "null", "-"],
+                           capture_output=True, text=True).stderr
+    dpb = [int(m) + 1 for m in re.findall(r"sps_max_dec_pic_buffering_minus1\[\d+\]\s+[01]+ = (\d+)", trace)]
+    if not dpb:
+        raise AssertionError(f"{path}: could not read sps_max_dec_pic_buffering")
+    return sizes, level, max(dpb)
+
+
+def level_violations(lv, w, h, fps, sizes, dpb):
+    """Reasons the stream breaks level `lv` (empty list = conforming)."""
+    name, _, max_ps, max_cpb, max_sr, max_br, min_cr = lv
+    ps = w * h
+    why = []
+    if ps > max_ps or w > math.sqrt(max_ps * 8) or h > math.sqrt(max_ps * 8):
+        why.append("picture size")
+    if ps * fps > max_sr:
+        why.append("luma sample rate")
+    max_dpb = 6 if ps > (3 * max_ps) >> 2 else 8 if ps > max_ps >> 1 else 12 if ps > max_ps >> 2 else 16
+    if dpb > max_dpb:
+        why.append(f"DPB {dpb} > {max_dpb}")
+    first_cap = 1.5 * max(ps, max_sr / 300) / min_cr  # A.4.1/A.4.2, bytes
+    next_cap = 1.5 * max_sr / fps / min_cr
+    for i, sz in enumerate(sizes):
+        if sz > (first_cap if i == 0 else next_cap):
+            why.append(f"frame {i} is {sz} bytes > MinCr limit")
+            break
+    cap, rate = max_cpb * 1000.0, max_br * 1000.0  # bits; leaky bucket starting full, refilled per frame
+    full = cap
+    for i, sz in enumerate(sizes):
+        if sz * 8 > full:
+            why.append(f"CPB underflow at frame {i}")
+            break
+        full = min(cap, full - sz * 8 + rate / fps)
+    return why
+
+
+def set_lowest_level(hevc, w, h, fps):
+    """Rewrite the stream's level to the lowest one it satisfies. Returns the level name."""
+    sizes, _, dpb = stream_facts(hevc)
+    for lv in HEVC_LEVELS:
+        if not level_violations(lv, w, h, fps, sizes, dpb):
+            tmp = hevc + ".lvl.hevc"
+            run(["ffmpeg", "-y", "-v", "error", "-i", hevc, "-c", "copy", "-bsf:v", f"hevc_metadata=level={lv[0]}",
+                 "-f", "hevc", tmp])
+            os.replace(tmp, hevc)
+            return lv[0]
+    raise AssertionError(f"{hevc}: fits no HEVC level up to 6.2")
+
+
 def mux_plain(hevc, fps, out):
     # MP4Box: exact constant timestamps (ffmpeg's raw-HEVC muxing mangles B-frame timing).
     if os.path.exists(out):
@@ -738,6 +819,13 @@ def verify(path, w, h, intended, kind, n_out):
                               "-of", "csv=p=0", path], check=True, capture_output=True, text=True).stdout.strip().strip(",")
     if profile != "Main 10":
         raise AssertionError(f"{path}: HEVC profile is '{profile}', must be 'Main 10' for TV decoders")
+    sizes, level_idc, dpb = stream_facts(path)
+    lv = next((l for l in HEVC_LEVELS if l[1] == level_idc), None)
+    if lv is None:
+        raise AssertionError(f"{path}: HEVC level_idc {level_idc} is not a real level (x265's lossless default is 255)")
+    why = level_violations(lv, w, h, fps_value(probe["avg_frame_rate"]), sizes, dpb)
+    if why:
+        raise AssertionError(f"{path}: breaks HEVC level {lv[0]}: {', '.join(why)}")
     if int(probe["nb_frames"]) != n_out or probe["color_range"] != "tv":
         raise AssertionError(f"{path}: bad container info {probe}")
     if kind == "static":
@@ -873,6 +961,7 @@ def main():
                     tag = f"{fid}{suffix}"
                     hevc = os.path.join(tmp, f"{tag}_{fmt_name}.hevc")
                     intended, stats, info, cll, n_out = encode(fam, fmt, w, h, hevc)
+                    level = set_lowest_level(hevc, w, h, fps_value(fam["fps"]))
                     outs = [(os.path.join(out_dir, f"{tag}_{fmt_name}.mp4"), fmt_name)]
                     mux_plain(hevc, fam["fps"], outs[0][0])
                     if fmt.hdr and fid not in ("peak",) and not fid.startswith("metadata"):
@@ -883,7 +972,7 @@ def main():
                         wl, wc, ex = verify(path, w, h, intended, fam["kind"], n_out)
                         ok = wl == 0 and wc <= 1
                         mark = "OK " if ok else "BAD"
-                        extra = f" MaxCLL/FALL={cll}" if cll else ""
+                        extra = f" level {level}" + (f" MaxCLL/FALL={cll}" if cll else "")
                         print(f"{mark} {os.path.basename(path):34s} {os.path.getsize(path) / 1e6:6.2f} MB "
                               f"luma maxerr={wl} chroma maxerr={wc} exact={ex * 100:.3f}%{extra}", flush=True)
                         if not ok:
