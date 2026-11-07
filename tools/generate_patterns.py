@@ -589,6 +589,32 @@ def run(cmd, **kw):
     subprocess.run(cmd, check=True, **kw)
 
 
+# x265 3.5 (e.g. Ubuntu 24.04, used by tools/Dockerfile) prints this when the machine exposes no NUMA
+# information, as in Docker Desktop's VM. It is harmless: encoding is unaffected and every clip is verified.
+HARMLESS_ENCODER_NOISE = ("Failed to genrate CPU mask",)
+
+
+class Encoder:
+    """Runs an ffmpeg/x265 encode, passing its messages through except known-harmless noise."""
+
+    def __init__(self, cmd, stdin=False):
+        self.log = tempfile.TemporaryFile(mode="w+")  # a file, not a pipe: can't deadlock while we feed stdin
+        self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE if stdin else None, stderr=self.log, text=False)
+        self.stdin = self.proc.stdin
+
+    def wait(self):
+        if self.stdin:
+            self.stdin.close()
+        code = self.proc.wait()
+        self.log.seek(0)
+        for line in self.log:
+            if not any(n in line for n in HARMLESS_ENCODER_NOISE):
+                sys.stderr.write(line)
+        self.log.close()
+        if code != 0:
+            raise RuntimeError(f"ffmpeg failed ({code})")
+
+
 def x265_params(fam, fmt, stats, ladder):
     # lossless=1: mathematically lossless (cu_transquant_bypass, allowed in Main10). Lossy coding
     # rings around logo edges and changes the very levels the tests depend on.
@@ -608,7 +634,34 @@ def x265_params(fam, fmt, stats, ladder):
     return ":".join(p), None
 
 
+def encode_motion(fam, fmt, w, h, hevc_out):
+    """Motion clips are rendered one frame at a time (all 240 frames at 4K would need ~24 GB):
+    pass 1 measures the HDR metadata, pass 2 renders again and pipes each frame to x265."""
+    n_out = fam["frames"]
+    stats, info = [], None
+    for k in range(n_out):
+        fr, info = fam["build"](fmt, w, h, only=(k,))
+        stats.append(frame_stats(fr[0].rgb, fmt))
+    params, cll = x265_params(fam, fmt, stats, False)
+    cmd = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+           "-f", "rawvideo", "-pix_fmt", "yuv420p10le", "-s", f"{w}x{h}", "-r", fam["fps"], "-i", "pipe:0",
+           "-frames:v", str(n_out), "-c:v", "libx265", "-preset", "slow",
+           "-profile:v", "main10", "-pix_fmt", "yuv420p10le", "-x265-params", params, "-f", "hevc", hevc_out]
+    intended = {}
+    enc = Encoder(cmd, stdin=True)
+    for k in range(n_out):
+        fr, _ = fam["build"](fmt, w, h, only=(k,))
+        planes = to_ycc(fr[0].rgb, fmt)
+        enc.stdin.write(ycc_bytes(planes))
+        if k in MOTION_CHECK:
+            intended[k] = planes  # verify() compares these frames
+    enc.wait()
+    return intended, stats, info, cll, n_out
+
+
 def encode(fam, fmt, w, h, hevc_out):
+    if fam["kind"] == "motion":
+        return encode_motion(fam, fmt, w, h, hevc_out)
     frames, info = fam["build"](fmt, w, h)
     stats = [frame_stats(c.rgb, fmt) for c in frames]
     ladder = fam["kind"] == "frames"
@@ -625,15 +678,13 @@ def encode(fam, fmt, w, h, hevc_out):
     if fam["kind"] == "static":
         with open(hevc_out + ".yuv", "wb") as f:
             f.write(ycc_bytes(intended[0]))
-        run(cmd)
+        Encoder(cmd).wait()
         os.remove(hevc_out + ".yuv")
     else:
-        p = subprocess.Popen(cmd, stdin=subprocess.PIPE)
+        enc = Encoder(cmd, stdin=True)
         for planes in intended:
-            p.stdin.write(ycc_bytes(planes))
-        p.stdin.close()
-        if p.wait() != 0:
-            raise RuntimeError("ffmpeg failed")
+            enc.stdin.write(ycc_bytes(planes))
+        enc.wait()
     if fam["kind"] == "static":
         stats = stats * n_out
     return intended, stats, info, cll, n_out

@@ -1,0 +1,3 @@
+# Only tools/requirements.txt is needed to build the toolchain image; the repo is mounted at runtime.
+*
+!tools/requirements.txt

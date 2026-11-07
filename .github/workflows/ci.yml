@@ -36,3 +36,18 @@ jobs:
         run: pip install -r tools/requirements.txt
       - name: Decode every committed clip and compare with the generator
         run: python3 tools/generate_patterns.py --verify-only
+
+  docker-tools:
+    name: Docker toolchain (generate + verify sample patterns)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build toolchain image
+        run: docker build -t picture-tuner-tools -f tools/Dockerfile .
+      - name: Generate sample families (static + Dolby Vision, finder ladder) and verify them
+        run: |
+          mkdir -p /tmp/out
+          docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/work" -v /tmp/out:/out picture-tuner-tools \
+            python3 tools/generate_patterns.py /out --only black,peak --no-1080
+      - name: Branding export checks
+        run: docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/work" picture-tuner-tools python3 branding/export_android.py --check
