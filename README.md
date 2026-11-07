@@ -15,6 +15,9 @@ There are two modes:
 - **Guided calibration** walks through the essential screens for one format.
 - **Free choice** lets you open any screen from the list.
 
+Download the APK from [Releases](https://github.com/ivalkenburg/picture-tuner/releases) and install it on your
+Android TV or Google TV device, for example with `adb install`.
+
 ## Controls
 
 | Key | On a test screen | On a card |
@@ -73,23 +76,31 @@ The emulator can't decode 10-bit HEVC, so test on real hardware. For release sig
 
 ### Patterns
 
+Everything needed to generate the patterns (x265, dovi_tool, MP4Box and Python) is in a Docker image, so nothing has
+to be installed locally:
+
 ```sh
-brew install ffmpeg dovi_tool gpac
-pip install -r tools/requirements.txt
-python3 tools/generate_patterns.py                    # regenerate all (4K + 1080p) and verify
-python3 tools/generate_patterns.py --only black       # selected families
-python3 tools/generate_patterns.py --verify-only      # check committed clips (ffmpeg + Python only)
+docker build -t picture-tuner-tools -f tools/Dockerfile .
+alias pt-tools='docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/work" picture-tuner-tools'
+
+pt-tools python3 tools/generate_patterns.py                  # regenerate all (4K + 1080p) and verify
+pt-tools python3 tools/generate_patterns.py --only black     # selected families
+pt-tools python3 tools/generate_patterns.py --verify-only    # check the committed clips
+pt-tools python3 branding/export_android.py                  # regenerate icons, banner, store graphics
 ```
+
+A full run takes about 10–20 minutes and needs about 8 GB of memory for Docker. Regenerated clips have identical
+pixels (the generator verifies every one), but their files can differ byte-for-byte from the committed ones if the
+encoder version differs, so commit regenerated clips only for families you changed.
+
+Without Docker: `brew install ffmpeg dovi_tool gpac cairo` and `pip install -r tools/requirements.txt CairoSVG`, then
+run the same commands without `pt-tools`.
 
 ### Branding
 
-Logo sources live in `branding/luma-dial-source/`. `branding/export_android.py` generates the launcher icons, the TV
-banner and the store graphics (`fastlane/metadata/android/en-US/images/`), and validates them.
-
-```sh
-pip install CairoSVG pillow numpy    # needs the Cairo library
-python3 branding/export_android.py
-```
+Logo sources live in `branding/luma-dial-source/`. `branding/export_android.py` (also in the Docker image, see above)
+generates the launcher icons, the TV banner and the store graphics (`fastlane/metadata/android/en-US/images/`), and
+validates them.
 
 ## Contributing
 

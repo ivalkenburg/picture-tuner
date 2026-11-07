@@ -1,0 +1,110 @@
+name: Release
+
+# Runs only for version tags vMAJOR.MINOR.PATCH (e.g. v1.4.2). The procedure is described in AGENTS.md.
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Publish release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history + tags for the changelog
+
+      - name: Validate tag, version and branch
+        run: |
+          TAG="$GITHUB_REF_NAME"
+          if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::Tag '$TAG' is not vMAJOR.MINOR.PATCH"; exit 1
+          fi
+          VERSION="${TAG#v}"
+          NAME=$(sed -n 's/^ *versionName = "\(.*\)"$/\1/p' app/build.gradle.kts)
+          if [ "$NAME" != "$VERSION" ]; then
+            echo "::error::versionName in app/build.gradle.kts is '$NAME', tag is '$VERSION'"; exit 1
+          fi
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::Tagged commit $GITHUB_SHA is not on main"; exit 1
+          fi
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Verify test patterns (bit-exact)
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+          pip install -r tools/requirements.txt
+          python3 tools/generate_patterns.py --verify-only
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build APK
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          mkdir -p dist
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > release.jks
+            printf 'storeFile=release.jks\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
+              "$KEYSTORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" > keystore.properties
+            ./gradlew assembleRelease
+            cp app/build/outputs/apk/release/app-release.apk "dist/picture-tuner-$TAG.apk"
+            echo "SIGNING=release" >> "$GITHUB_ENV"
+          else
+            # No release key configured: publish a debug-signed APK, clearly named.
+            ./gradlew assembleDebug
+            cp app/build/outputs/apk/debug/app-debug.apk "dist/picture-tuner-$TAG-debug-signed.apk"
+            echo "SIGNING=debug" >> "$GITHUB_ENV"
+          fi
+          rm -f release.jks keystore.properties
+
+      - name: Write release notes
+        run: |
+          # Previous version tag = the highest vX.Y.Z below this one.
+          PREV=$(git tag --list 'v*' --sort=v:refname | grep -E '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' \
+                 | awk -v t="$TAG" '$0 == t { print prev; exit } { prev = $0 }')
+          {
+            if [ -n "$PREV" ]; then
+              echo "## Changes"
+              echo
+              git log --no-merges --pretty='- %s (%h)' "$PREV..$TAG" \
+                | grep -v -E '^- Release v[0-9]+\.[0-9]+\.[0-9]+ \(' || echo "- No changes"
+              echo
+              echo "**Full changelog:** https://github.com/$GITHUB_REPOSITORY/compare/$PREV...$TAG"
+            else
+              echo "First release. All commits: https://github.com/$GITHUB_REPOSITORY/commits/$TAG"
+            fi
+            echo
+            echo "## Install"
+            echo
+            echo "Download the APK below and install it on your Android TV / Google TV device, for example with"
+            echo "\`adb install picture-tuner-$TAG*.apk\`."
+            if [ "$SIGNING" = "debug" ]; then
+              echo
+              echo "> This APK is signed with a debug key. Uninstall it before installing a future release-signed build."
+            fi
+            echo
+            echo "SHA-256:"
+            echo '```'
+            (cd dist && sha256sum *.apk)
+            echo '```'
+          } > notes.md
+          cat notes.md
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$TAG" dist/*.apk --verify-tag --title "Picture Tuner $TAG" --notes-file notes.md
